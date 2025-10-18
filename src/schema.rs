@@ -1,13 +1,119 @@
+use diesel::sql_types::VarChar;
+
 diesel::table! {
-    control_front (id) {
-        id -> Varchar,
-        #[sql_name = "start_time"]  // 指定对应数据库中数据表的字段名
-        start_datetime -> Datetime,
-        #[sql_name = "end_time"]
+    control_front(dt){
+        #[sql_name="start_time"]
+        dt -> Datetime,
+        #[sql_name="end_time"]
         end_datetime -> Datetime,
-        #[sql_name = "std1"]
-        zl_standard -> Double,
-        #[sql_name = "std2"]
-        zk_standard -> Double,
+        #[sql_name="std1"]
+        zl_s-> Float,
+        #[sql_name="std2"]
+        zk_s -> Float,
+        #[sql_name="spec"]
+        #[max_length = 255]
+        norm_name -> VarChar
+    }
+}
+
+// @generated automatically by Diesel CLI.
+diesel::table! {
+    #[sql_name = "batch_indices_sidewall"]
+    sidewall (pk) {
+        pk -> Integer,
+        line_id -> Integer,
+        #[max_length = 25]
+        shift_name -> Nullable<Varchar>,
+        front_start_datetime -> Nullable<Datetime>,
+        front_end_datetime -> Nullable<Datetime>,
+        #[max_length = 255]
+        front_norm_name -> Nullable<Varchar>,
+        front_zl_standard -> Nullable<Float>,
+        front_zl_mean_op -> Nullable<Float>,
+        front_zl_cp_op -> Nullable<Float>,
+        front_zl_ca_op -> Nullable<Float>,
+        front_zl_cpk_op -> Nullable<Float>,
+        front_zl_rate_op -> Nullable<Float>,
+        front_zl_qualified_count_op -> Nullable<Integer>,
+        front_zl_gt_usl_count_op -> Nullable<Integer>,
+        front_zl_lt_lsl_count_op -> Nullable<Integer>,
+        front_zl_valid_count_op -> Nullable<Integer>,
+        front_zl_mean_mc -> Nullable<Float>,
+        front_zl_cp_mc -> Nullable<Float>,
+        front_zl_ca_mc -> Nullable<Float>,
+        front_zl_cpk_mc -> Nullable<Float>,
+        front_zl_rate_mc -> Nullable<Float>,
+        front_zl_qualified_count_mc -> Nullable<Integer>,
+        front_zl_gt_usl_count_mc -> Nullable<Integer>,
+        front_zl_lt_lsl_count_mc -> Nullable<Integer>,
+        front_zl_valid_count_mc -> Nullable<Integer>,
+        front_zk_standard -> Nullable<Float>,
+        front_zk_mean_op -> Nullable<Float>,
+        front_zk_cp_op -> Nullable<Float>,
+        front_zk_ca_op -> Nullable<Float>,
+        front_zk_cpk_op -> Nullable<Float>,
+        front_zk_rate_op -> Nullable<Float>,
+        front_zk_qualified_count_op -> Nullable<Integer>,
+        front_zk_gt_usl_count_op -> Nullable<Integer>,
+        front_zk_lt_lsl_count_op -> Nullable<Integer>,
+        front_zk_valid_count_op -> Nullable<Integer>,
+        front_zk_mean_mc -> Nullable<Float>,
+        front_zk_cp_mc -> Nullable<Float>,
+        front_zk_ca_mc -> Nullable<Float>,
+        front_zk_cpk_mc -> Nullable<Float>,
+        front_zk_rate_mc -> Nullable<Float>,
+        front_zk_qualified_count_mc -> Nullable<Integer>,
+        front_zk_gt_usl_count_mc -> Nullable<Integer>,
+        front_zk_lt_lsl_count_mc -> Nullable<Integer>,
+        front_zk_valid_count_mc -> Nullable<Integer>,
+        front_count -> Nullable<Integer>,
+        front_control_count -> Nullable<Integer>,
+        behind_start_datetime -> Nullable<Datetime>,
+        behind_end_datetime -> Nullable<Datetime>,
+        #[max_length = 255]
+        behind_norm_name -> Nullable<Varchar>,
+        behind_zl_standard -> Nullable<Float>,
+        behind_zl_mean_op -> Nullable<Float>,
+        behind_zl_cp_op -> Nullable<Float>,
+        behind_zl_ca_op -> Nullable<Float>,
+        behind_zl_cpk_op -> Nullable<Float>,
+        behind_zl_rate_op -> Nullable<Float>,
+        behind_zl_qualified_count_op -> Nullable<Integer>,
+        behind_zl_gt_usl_count_op -> Nullable<Integer>,
+        behind_zl_lt_lsl_count_op -> Nullable<Integer>,
+        behind_zl_valid_count_op -> Nullable<Integer>,
+        behind_zl_mean_mc -> Nullable<Float>,
+        behind_zl_cp_mc -> Nullable<Float>,
+        behind_zl_ca_mc -> Nullable<Float>,
+        behind_zl_cpk_mc -> Nullable<Float>,
+        behind_zl_rate_mc -> Nullable<Float>,
+        behind_zl_qualified_count_mc -> Nullable<Integer>,
+        behind_zl_gt_usl_count_mc -> Nullable<Integer>,
+        behind_zl_lt_lsl_count_mc -> Nullable<Integer>,
+        behind_zl_valid_count_mc -> Nullable<Integer>,
+        behind_zk_standard -> Nullable<Float>,
+        behind_zk_mean_op -> Nullable<Float>,
+        behind_zk_cp_op -> Nullable<Float>,
+        behind_zk_ca_op -> Nullable<Float>,
+        behind_zk_cpk_op -> Nullable<Float>,
+        behind_zk_rate_op -> Nullable<Float>,
+        behind_zk_qualified_count_op -> Nullable<Integer>,
+        behind_zk_gt_usl_count_op -> Nullable<Integer>,
+        behind_zk_lt_lsl_count_op -> Nullable<Integer>,
+        behind_zk_valid_count_op -> Nullable<Integer>,
+        behind_zk_mean_mc -> Nullable<Float>,
+        behind_zk_cp_mc -> Nullable<Float>,
+        behind_zk_ca_mc -> Nullable<Float>,
+        behind_zk_cpk_mc -> Nullable<Float>,
+        behind_zk_rate_mc -> Nullable<Float>,
+        behind_zk_qualified_count_mc -> Nullable<Integer>,
+        behind_zk_gt_usl_count_mc -> Nullable<Integer>,
+        behind_zk_lt_lsl_count_mc -> Nullable<Integer>,
+        behind_zk_valid_count_mc -> Nullable<Integer>,
+        behind_count -> Nullable<Integer>,
+        behind_control_count -> Nullable<Integer>,
+        #[max_length = 36]
+        id -> Varchar,
+        extra_info -> Nullable<Text>,
     }
 }
