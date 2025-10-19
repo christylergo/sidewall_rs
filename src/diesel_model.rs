@@ -26,11 +26,11 @@ pub struct ControlFront {
 pub struct Sidewall {
     pub pk: i32,
     pub line_id: i32,
-    #[column_name = "behind_start_datetime"]
+    #[diesel(column_name = "behind_start_datetime")]
     pub dt: Option<NaiveDateTime>,
-    #[column_name = "behind_end_datetime"]
+    #[diesel(column_name = "behind_end_datetime")]
     pub end_datetime: Option<NaiveDateTime>,
-    #[column_name = "behind_norm_name"]
+    #[diesel(column_name = "behind_norm_name")]
     pub norm_name: Option<String>,
 }
 
@@ -38,7 +38,7 @@ pub struct Sidewall {
 #[diesel(table_name = crate::schema::sidewall)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct NewSidewall {
-    pub pk: i32,
+    // pub pk: i32,
     pub line_id: i32,
     pub shift_name: Option<String>,
     pub front_start_datetime: Option<NaiveDateTime>,

@@ -1,6 +1,5 @@
 use crate::CONFIG_META;
 use chrono::{DateTime, Duration, Local};
-use diesel::dsl::json;
 use log::{debug, error, info};
 use polars::prelude::*;
 use reqwest::blocking::Client;
@@ -91,7 +90,14 @@ fn datetime_range(s: &DT, e: &DT) -> HashMap<String, Value> {
 
 fn parse_str(raw_str: String, dt_index: &HashMap<String, Value>) -> DataFrame {
     let meta = &CONFIG_META;
-    let data_map = serde_json::from_str::<RawStr>(&raw_str).unwrap().data_map;
+    let Ok(RawStr { data_map }) = serde_json::from_str::<RawStr>(&raw_str) else {
+        error!(
+            "start at: {}\n{}",
+            dt_index.iter().max_by_key(|(k, _)| (*k).clone()).unwrap().0,
+            &raw_str
+        );
+        panic!();
+    };
 
     let mut data_vector: Vec<(&str, &str, Vec<(String, Value)>)> = data_map
         .into_iter()
@@ -190,21 +196,28 @@ fn emit_qushu_dataframe(line: &str, start: &DT, end: &DT) -> LazyFrame {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
-
     use super::*;
+    use chrono::TimeZone;
+    use std::env;
+    use std::fs::File;
+    // use std::path::Path;
 
     #[test]
     // #[ignore = "already tested"]
     fn qushu_works() {
         let (line, s, e) = (
             "SW01",
-            Local.with_ymd_and_hms(2025, 10, 15, 1, 1, 1).unwrap(),
-            Local.with_ymd_and_hms(2025, 10, 19, 1, 1, 1).unwrap(),
+            Local.with_ymd_and_hms(2025, 10, 15, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 10, 18, 0, 0, 0).unwrap(),
         );
 
         let data_pool = DataFrameGenerator::new(line, &s, &e);
         for df in data_pool {
+            // let mut df_eager = df.collect().unwrap();
+            // // let path = env::var("HOME");
+            // let path = env::current_dir().unwrap().to_str().unwrap().to_string();
+            // let mut file = File::create(format!("{path}/qushu.parquet")).unwrap();
+            // ParquetWriter::new(&mut file).finish(&mut df_eager).unwrap();
             println! {"{}", df.collect().unwrap()};
         }
     }
