@@ -34,6 +34,7 @@ impl Crud for ControlFront {
         /// model使用了HasQuery宏, 这里可以用query查询, 目前的简化不明显,
         /// 如果是web后端大量进行find方法的主键查询, 会带来很大便利
         use crate::schema::control_front::dsl::*;
+
         let conn = &mut establish_connection();
 
         let results: Vec<Self> = Self::query()
@@ -54,28 +55,28 @@ impl Crud for ControlFront {
                         .collect::<Vec<NaiveDateTime>>(),
                 ),
                 pl::Column::new(
-                    "end_datetime".into(),
+                    "control_end_dt".into(),
                     results
                         .iter()
                         .map(|ctrlf| ctrlf.control_end_dt)
                         .collect::<Vec<NaiveDateTime>>(),
                 ),
                 pl::Column::new(
-                    "zl_s".into(),
+                    "front_zl_standard".into(),
                     results
                         .iter()
                         .map(|ctrlf| ctrlf.front_zl_standard)
                         .collect::<Vec<f32>>(),
                 ),
                 pl::Column::new(
-                    "zk_s".into(),
+                    "front_zk_standard".into(),
                     results
                         .iter()
                         .map(|ctrlf| ctrlf.front_zk_standard)
                         .collect::<Vec<f32>>(),
                 ),
                 pl::Column::new(
-                    "norm_name".into(),
+                    "front_norm_name".into(),
                     results
                         .iter()
                         .map(|ctrlf| ctrlf.front_norm_name.to_owned())

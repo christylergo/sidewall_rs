@@ -20,6 +20,18 @@ fn identity_batch(prefix: &str, by: &[String]) -> Expr {
     return batch;
 }
 
+fn rectify_norm_name(prefix: &[String]) -> Vec<Expr> {
+    prefix
+        .iter()
+        .map(|prf| {
+            col(format!("{prf}_norm_name"))
+                .str()
+                // .extract(lit(r"^\d*(\w+\d+)$"), 1)
+                .extract(lit(r"^(.+)$"), 1) // no action!
+        })
+        .collect()
+}
+
 fn rectify_standard(indices: &str) -> Expr {
     todo!()
 }
@@ -57,25 +69,38 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
     let limit_map = meta.get_limit();
 
     /*batch expression should be applied to lazyframe first */
-    let mut _df_lazy = df_sw.with_columns(
-        cacu["prefix"]
-            .iter()
-            .map(|prf| identity_batch(prf, &cacu["batch_by"]))
-            .collect::<Vec<_>>(),
-    );
-    println!("{:?}\n****1***", _df_lazy.clone().collect().unwrap());
+    let df_lazy = df_sw
+        .with_columns(rectify_norm_name(&cacu["prefix"]))
+        .with_columns(
+            cacu["prefix"]
+                .iter()
+                .map(|prf| identity_batch(prf, &cacu["batch_by"]))
+                .collect::<Vec<_>>(),
+        );
+    // println!("{:?}", df_lazy.clone().collect());
 
-    _df_lazy = _df_lazy
+    let df_lazy_1 = df_lazy
         .join(
-            df_front,
+            df_front.with_columns(rectify_norm_name(&vec!["front".into()])),
             [col("dt"), col("front_norm_name")],
             [col("dt"), col("front_norm_name")],
             JoinArgs::new(JoinType::Left),
         )
-        .sort(["line_id", "dt"], Default::default());
-    println!("{:?}\n****1***", _df_lazy.clone().collect().unwrap());
+        .sort(["line_id", "dt"], Default::default())
+        .with_column(
+            cols(["control_end_dt", "front_zl_standard", "front_zk_standard"])
+                .as_expr()
+                .fill_null_with_strategy(FillNullStrategy::Forward(None))
+                .over(["front_batch"]),
+        )
+        .with_column(
+            when(col("control_end_dt").gt_eq(col("dt")))
+                .then(cols(["control_end_dt", "front_zl_standard", "front_zk_standard"]).as_expr())
+                .otherwise(Null {}.lit()),
+        );
+    // println!("{:?}", df_lazy_1.clone().collect());
 
-    _df_lazy = _df_lazy.with_columns(
+    let df_lazy_2 = df_lazy_1.with_columns(
         cacu["prefix"]
             .iter()
             .flat_map(|prf| {
@@ -88,7 +113,7 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
             })
             .collect::<Vec<_>>(),
     );
-    _df_lazy
+    df_lazy_2
     // todo!()
 }
 
@@ -104,7 +129,7 @@ mod tests {
     fn assemble_df_works() {
         let (line, s, e) = (
             "SW01",
-            Local.with_ymd_and_hms(2025, 10, 15, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 10, 17, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2025, 10, 18, 0, 0, 0).unwrap(),
         );
         let df_front = ControlFront::load_data_frame(&s, &e);

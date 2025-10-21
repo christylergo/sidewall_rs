@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// 关联获取到table, 这个功能需要自定义过程宏来实现. 由于宏代码难度
 /// 较大, 暂时先实现查询功能, 以后再优化代码
 
-#[derive(Debug, Default, Serialize, HasQuery)]
+#[derive(Debug, Serialize, Deserialize, HasQuery)]
 #[diesel(table_name = crate::schema::control_front)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct ControlFront {
@@ -35,7 +35,7 @@ pub struct Sidewall {
     pub norm_name: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize, Insertable, Selectable, AsChangeset)]
+#[derive(Debug, Deserialize, Insertable, Selectable, AsChangeset)]
 #[diesel(table_name = crate::schema::sidewall)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct NewSidewall {
