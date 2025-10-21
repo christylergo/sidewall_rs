@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// 如果有大量的数据表需要映射查询, 目前diesel提供的功能使用时过于繁琐,
 /// 可通过自定义derive macro来实现通用的查询功能, diesel重点关注
@@ -9,15 +9,16 @@ use serde::Deserialize;
 /// 关联获取到table, 这个功能需要自定义过程宏来实现. 由于宏代码难度
 /// 较大, 暂时先实现查询功能, 以后再优化代码
 
-#[derive(Debug, HasQuery)]
+#[derive(Debug, Default, Serialize, HasQuery)]
 #[diesel(table_name = crate::schema::control_front)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct ControlFront {
     pub dt: NaiveDateTime,
-    pub end_datetime: NaiveDateTime,
-    pub zl_s: f32,
-    pub zk_s: f32,
-    pub norm_name: String,
+    pub control_end_dt: NaiveDateTime,
+    pub front_zl_standard: f32,
+    pub front_zk_standard: f32,
+    pub front_norm_name: String,
+    // pub plan_id: String,
 }
 
 #[derive(Debug, Queryable, Selectable)]
@@ -34,7 +35,7 @@ pub struct Sidewall {
     pub norm_name: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize, Insertable, Selectable)]
+#[derive(Debug, Default, Deserialize, Insertable, Selectable, AsChangeset)]
 #[diesel(table_name = crate::schema::sidewall)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct NewSidewall {
@@ -83,7 +84,7 @@ pub struct NewSidewall {
     pub front_zk_lt_lsl_count_mc: Option<i32>,
     pub front_zk_valid_count_mc: Option<i32>,
     pub front_count: Option<i32>,
-    pub front_control_count: Option<i32>,
+    pub front_control_rate: Option<f32>,
     pub behind_start_datetime: Option<NaiveDateTime>,
     pub behind_end_datetime: Option<NaiveDateTime>,
     pub behind_norm_name: Option<String>,
@@ -126,5 +127,5 @@ pub struct NewSidewall {
     pub behind_zk_lt_lsl_count_mc: Option<i32>,
     pub behind_zk_valid_count_mc: Option<i32>,
     pub behind_count: Option<i32>,
-    pub behind_control_count: Option<i32>,
+    pub behind_control_rate: Option<f32>,
 }

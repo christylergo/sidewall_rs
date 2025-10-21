@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 log = "0.4"
-env_logger = "0.11"
+# env_logger = "0.11"
+simplelog = "0.12.2"
 diesel = { version = "2.3.1", features = [
     "mysql",
     # "sqlite",

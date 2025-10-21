@@ -21,7 +21,8 @@ struct Basic {
     qushu: QuShu,
     db_info: MySqlDataBase,
     line_info: HashMap<String, HashMap<String, String>>,
-    calculate: Calculate,
+    calculate: HashMap<String, Vec<String>>,
+    limit: HashMap<String, (f32, f32, bool)>, // tolerace, valid, by_percentage
     schema: HashMap<String, String>,
 }
 
@@ -40,13 +41,6 @@ struct MySqlDataBase {
     pwd: String,
     db: String,
     rdbms: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct Calculate {
-    indices: Vec<String>,
-    batch_by: Vec<String>,
-    filter: Vec<String>,
 }
 
 type DT = DateTime<Local>;
@@ -80,10 +74,12 @@ impl Meta {
             db.db
         )
     }
+
     pub fn get_header(&self) -> (&str, &str) {
         let header = self.basic.qushu.header.iter().next().unwrap();
         (&header.0, &header.1) //直接返回元组会提示类型不匹配,因为deref不会在元组中递归生效
     }
+
     pub fn get_tag_key(&self, tag: &str) -> &str {
         for (_, tk_map) in &self.tags {
             let Some(x) = tk_map.get(tag) else {
@@ -93,9 +89,19 @@ impl Meta {
         }
         return "";
     }
-    pub fn get_line_id(&self, line: &str) -> i64 {
+
+    pub fn get_lines(&self) -> Vec<String> {
+        self.tags.keys().cloned().collect()
+    }
+
+    pub fn get_line_id(&self, line: &str) -> i32 {
         self.basic.line_info[line]["line_id"].parse().unwrap()
     }
+
+    pub fn get_init_end_point(&self) -> (DateTime<Local>, DateTime<Local>) {
+        (self.basic.qushu.start, self.basic.qushu.end)
+    }
+
     pub fn get_schema(&self, tag: &str) -> &str {
         let key = self.get_tag_key(tag);
         for (key_segment, schema) in &self.basic.schema {
@@ -104,6 +110,14 @@ impl Meta {
             }
         }
         return "";
+    }
+
+    pub fn get_caculate(&self) -> &HashMap<String, Vec<String>> {
+        &self.basic.calculate
+    }
+
+    pub fn get_limit(&self) -> &HashMap<String, (f32, f32, bool)> {
+        &self.basic.limit
     }
 }
 

@@ -16,6 +16,7 @@ struct RawStr {
     #[serde(rename = "Result")]
     data_map: HashMap<String, HashMap<String, Value>>,
 }
+
 #[derive(Debug, Deserialize)]
 pub struct DataFrameGenerator {
     line: String,
@@ -23,6 +24,7 @@ pub struct DataFrameGenerator {
     current_start: DT,
     overall_end: DT,
 }
+
 impl DataFrameGenerator {
     pub fn new(line: &str, overall_start: &DT, overall_end: &DT) -> Self {
         DataFrameGenerator {
@@ -188,7 +190,7 @@ fn emit_qushu_dataframe(line: &str, start: &DT, end: &DT) -> LazyFrame {
                 .as_expr()
                 .fill_null_with_strategy(FillNullStrategy::Forward(None))])
             .filter(col("status").is_not_null())
-            .sort(["dt"], Default::default())
+            .sort(["line_id", "dt"], Default::default())
     } else {
         LazyFrame::default()
     }

@@ -1,4 +1,9 @@
 -- Your SQL goes here
+CREATE TABLE control_front (
+  id VARCHAR(36) PRIMARY KEY,
+  
+);
+
 CREATE TABLE batch_indices_sidewall (
   pk INTEGER AUTO_INCREMENT PRIMARY KEY,
   line_id INTEGER NOT NULL,
@@ -45,7 +50,7 @@ CREATE TABLE batch_indices_sidewall (
   front_zk_lt_lsl_count_mc INTEGER,
   front_zk_valid_count_mc INTEGER,
   front_count INTEGER,
-  front_control_count INTEGER,
+  front_control_rate FLOAT,
   behind_start_datetime Datetime,
   behind_end_datetime Datetime,
   behind_norm_name VARCHAR(255),
@@ -88,7 +93,7 @@ CREATE TABLE batch_indices_sidewall (
   behind_zk_lt_lsl_count_mc INTEGER,
   behind_zk_valid_count_mc INTEGER,
   behind_count INTEGER,
-  behind_control_count INTEGER,
+  behind_control_rate FLOAT,
   id VARCHAR(36)  NOT NULL DEFAULT (UUID()),
   extra_info TEXT
 )

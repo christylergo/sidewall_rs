@@ -1,18 +1,22 @@
-use diesel::sql_types::VarChar;
-
+// typed manully
 diesel::table! {
-    control_front(dt){
-        #[sql_name="start_time"]
+    control_front(id){
+        #[max_length = 36]
+        id -> VarChar,
+        #[sql_name = "start_time"]
         dt -> Datetime,
-        #[sql_name="end_time"]
-        end_datetime -> Datetime,
-        #[sql_name="std1"]
-        zl_s-> Float,
-        #[sql_name="std2"]
-        zk_s -> Float,
-        #[sql_name="spec"]
+        #[sql_name = "end_time"]
+        control_end_dt -> Datetime,
+        #[sql_name = "std1"]
+        front_zl_standard -> Float,
+        #[sql_name = "std2"]
+        front_zk_standard -> Float,
         #[max_length = 255]
-        norm_name -> VarChar
+        #[sql_name = "spec"]
+        front_norm_name -> VarChar,
+        // #[max_length = 255]
+        // #[sql_name = "plan_no"]
+        // plan_id -> VarChar
     }
 }
 
@@ -67,7 +71,7 @@ diesel::table! {
         front_zk_lt_lsl_count_mc -> Nullable<Integer>,
         front_zk_valid_count_mc -> Nullable<Integer>,
         front_count -> Nullable<Integer>,
-        front_control_count -> Nullable<Integer>,
+        front_control_rate -> Nullable<Float>,
         behind_start_datetime -> Nullable<Datetime>,
         behind_end_datetime -> Nullable<Datetime>,
         #[max_length = 255]
@@ -111,7 +115,7 @@ diesel::table! {
         behind_zk_lt_lsl_count_mc -> Nullable<Integer>,
         behind_zk_valid_count_mc -> Nullable<Integer>,
         behind_count -> Nullable<Integer>,
-        behind_control_count -> Nullable<Integer>,
+        behind_control_rate -> Nullable<Float>,
         #[max_length = 36]
         id -> Varchar,
         extra_info -> Nullable<Text>,

@@ -1,8 +1,10 @@
 use crate::diesel_model::{ControlFront, NewSidewall, Sidewall};
-use chrono::{DateTime, Duration, Local, NaiveDateTime};
-use diesel::{associations::HasTable, mysql::Mysql, prelude::*};
+use chrono::{DateTime, Local, NaiveDateTime};
+use diesel::prelude::*;
 use dotenvy::dotenv;
-use polars::prelude::{self as pl, DataFrame, LazyFrame};
+use polars::prelude::{
+    self as pl, DataFrame, IntoLazy, JsonFormat, JsonWriter, LazyFrame, SerWriter,
+};
 use std::env;
 use std::io::Cursor;
 
@@ -16,14 +18,19 @@ fn establish_connection() -> MysqlConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
-pub trait LoadDataFrame {
-    type Item;
-    fn load_data_frame(s: &DT, e: &DT) -> Self::Item;
+pub trait Crud<Scalar = Self> {
+    fn load_scalar(line_id: i32) -> Option<Scalar>;
+    fn load_data_frame(s: &DT, e: &DT) -> LazyFrame;
+    fn write_database(line_id: i32, df: LazyFrame);
 }
 
-impl LoadDataFrame for ControlFront {
-    type Item = DataFrame;
-    fn load_data_frame(s: &DT, e: &DT) -> Self::Item {
+impl Crud for ControlFront {
+    fn load_scalar(_line_id: i32) -> Option<ControlFront> {
+        Default::default()
+    }
+    fn write_database(_line_id: i32, _df: LazyFrame) {}
+
+    fn load_data_frame(s: &DT, e: &DT) -> LazyFrame {
         /// model使用了HasQuery宏, 这里可以用query查询, 目前的简化不明显,
         /// 如果是web后端大量进行find方法的主键查询, 会带来很大便利
         use crate::schema::control_front::dsl::*;
@@ -50,39 +57,41 @@ impl LoadDataFrame for ControlFront {
                     "end_datetime".into(),
                     results
                         .iter()
-                        .map(|ctrlf| ctrlf.end_datetime)
+                        .map(|ctrlf| ctrlf.control_end_dt)
                         .collect::<Vec<NaiveDateTime>>(),
                 ),
                 pl::Column::new(
                     "zl_s".into(),
-                    results.iter().map(|ctrlf| ctrlf.zl_s).collect::<Vec<f32>>(),
+                    results
+                        .iter()
+                        .map(|ctrlf| ctrlf.front_zl_standard)
+                        .collect::<Vec<f32>>(),
                 ),
                 pl::Column::new(
                     "zk_s".into(),
-                    results.iter().map(|ctrlf| ctrlf.zk_s).collect::<Vec<f32>>(),
+                    results
+                        .iter()
+                        .map(|ctrlf| ctrlf.front_zk_standard)
+                        .collect::<Vec<f32>>(),
                 ),
                 pl::Column::new(
                     "norm_name".into(),
                     results
                         .iter()
-                        .map(|ctrlf| ctrlf.norm_name.to_owned())
+                        .map(|ctrlf| ctrlf.front_norm_name.to_owned())
                         .collect::<Vec<String>>(),
                 ),
             ];
-            return DataFrame::new(col_vector).unwrap();
+            return DataFrame::new(col_vector).unwrap().lazy();
         }
     }
 }
 
-impl LoadDataFrame for Sidewall {
-    type Item = DataFrame;
-    fn load_data_frame(_s: &DT, _e: &DT) -> Self::Item {
+impl Crud for Sidewall {
+    fn load_data_frame(_s: &DT, _e: &DT) -> LazyFrame {
         Default::default() // todo!()
     }
-}
-
-impl Sidewall {
-    pub fn load_scalar(line_id: i32) -> Option<Self> {
+    fn load_scalar(line_id: i32) -> Option<Sidewall> {
         use crate::schema::sidewall as sw;
         use diesel::dsl::max;
 
@@ -103,26 +112,15 @@ impl Sidewall {
             return None;
         }
     }
+
+    fn write_database(line_id: i32, df: LazyFrame) {
+        NewSidewall::write_database(line_id, df);
+    }
 }
 
 impl NewSidewall {
-    pub fn write_database(line_id: i32, df: LazyFrame) {
-        use polars::prelude::*;
-
-        let sw_pre = Sidewall::load_scalar(line_id);
-        let mut df_cur = DataFrame::default();
-        if sw_pre.is_none() {
-            df_cur = df.collect().unwrap();
-        } else {
-            df_cur = df
-                .filter(
-                    col("behind_start_datetime")
-                        .gt_eq(lit(sw_pre.unwrap().dt.unwrap_or(Default::default()))),
-                )
-                .collect()
-                .unwrap();
-        }
-        // let mut df_cur = df.collect().unwrap();
+    fn translate(df: LazyFrame) -> Vec<NewSidewall> {
+        let mut df_cur = df.collect().unwrap();
         let mut buf = Vec::new();
         let cursor = Cursor::new(&mut buf);
         let _ = JsonWriter::new(cursor)
@@ -130,9 +128,71 @@ impl NewSidewall {
             .finish(&mut df_cur)
             .unwrap();
         let json_str = str::from_utf8(&buf).expect("invalid json string!");
-        let new_sw: Vec<NewSidewall> = serde_json::from_str(json_str).unwrap();
+        let new_sw = serde_json::from_str(json_str).unwrap();
         // println!("{:?}", new_sw);
         // println!("\n{}", json_str);
+        return new_sw;
+    }
+
+    fn write_database(line_id: i32, df: LazyFrame) {
+        let sw_pre = Sidewall::load_scalar(line_id);
+        let sw_vector = Self::translate(df);
+        let conn = &mut establish_connection();
+        {
+            use crate::schema::sidewall::dsl::*;
+
+            let (pkey, dt, end_datetime, _norm_name) = if sw_pre.is_none() {
+                Default::default()
+            } else {
+                let sw = &sw_pre.unwrap();
+                (
+                    sw.pk,
+                    sw.dt.unwrap(),
+                    sw.end_datetime.unwrap(),
+                    sw.norm_name.clone().unwrap(),
+                )
+            };
+            let new_sw_vec: &Vec<NewSidewall> = &sw_vector
+                .into_iter()
+                .filter(|inner_sw| inner_sw.behind_start_datetime.unwrap() >= dt)
+                .collect();
+            if new_sw_vec.len() < 1 {
+                return;
+            }
+
+            let sw_first = &new_sw_vec[0];
+
+            // 需要判断区间交界处的批次是否要更新或者丢弃
+            let mut new_sw_slice: &[NewSidewall];
+
+            if sw_first.behind_start_datetime.unwrap() == dt {
+                if sw_first.behind_end_datetime.unwrap() < end_datetime {
+                    // update unfinished previous sidewall batch
+                    let _ = diesel::update(sidewall)
+                        .filter(pk.eq(pkey))
+                        .set(sw_first)
+                        .execute(conn);
+                    // todo!(); //其他更新项
+                }
+                if new_sw_vec.len() < 2 {
+                    return;
+                }
+                new_sw_slice = &new_sw_vec[1..];
+            } else {
+                if sw_first.behind_end_datetime.unwrap() > dt {
+                    if new_sw_vec.len() < 2 {
+                        return;
+                    }
+                    new_sw_slice = &new_sw_vec[1..];
+                }
+                new_sw_slice = &new_sw_vec;
+            }
+            // insert into sidewall table
+            let _ = diesel::insert_into(sidewall)
+                .values(new_sw_slice)
+                .execute(conn)
+                .unwrap();
+        };
     }
 }
 
