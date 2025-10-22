@@ -23,7 +23,7 @@ pub fn data_processing() {
             Some(sw) => Local.from_local_datetime(&sw.dt.unwrap()).unwrap(),
             None => overall_start,
         };
-        let df_front = ControlFront::load_data_frame(&start, &overall_end);
+        let df_front = ControlFront::load_data_frame(line_id, &start, &overall_end);
         let df_generator = DataFrameGenerator::new(line, &start, &overall_end);
 
         for df_sw in df_generator {

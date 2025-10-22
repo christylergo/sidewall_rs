@@ -3,6 +3,8 @@ diesel::table! {
     control_front(id){
         #[max_length = 36]
         id -> VarChar,
+        #[sql_name = "line_no"]
+        line_id -> Integer,
         #[sql_name = "start_time"]
         dt -> Datetime,
         #[sql_name = "end_time"]
@@ -115,7 +117,7 @@ diesel::table! {
         behind_zk_lt_lsl_count_mc -> Nullable<Integer>,
         behind_zk_valid_count_mc -> Nullable<Integer>,
         behind_count -> Nullable<Integer>,
-        behind_control_rate -> Nullable<Float>,
+        control_rate -> Nullable<Float>,
         #[max_length = 36]
         id -> Varchar,
         extra_info -> Nullable<Text>,

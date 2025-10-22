@@ -1,4 +1,5 @@
 use crate::diesel_model::{ControlFront, NewSidewall, Sidewall};
+use crate::schema::sidewall;
 use chrono::{DateTime, Local, NaiveDateTime};
 use diesel::prelude::*;
 use dotenvy::dotenv;
@@ -19,18 +20,18 @@ fn establish_connection() -> MysqlConnection {
 }
 
 pub trait Crud<Scalar = Self> {
-    fn load_scalar(line_id: i32) -> Option<Scalar>;
-    fn load_data_frame(s: &DT, e: &DT) -> LazyFrame;
-    fn write_database(line_id: i32, df: LazyFrame);
+    fn load_scalar(line_id: u32) -> Option<Scalar>;
+    fn load_data_frame(line_id: u32, s: &DT, e: &DT) -> LazyFrame;
+    fn write_database(line_id: u32, df: LazyFrame);
 }
 
 impl Crud for ControlFront {
-    fn load_scalar(_line_id: i32) -> Option<ControlFront> {
+    fn load_scalar(_line_id: u32) -> Option<ControlFront> {
         Default::default()
     }
-    fn write_database(_line_id: i32, _df: LazyFrame) {}
+    fn write_database(_line_id: u32, _df: LazyFrame) {}
 
-    fn load_data_frame(s: &DT, e: &DT) -> LazyFrame {
+    fn load_data_frame(line_idx: u32, s: &DT, e: &DT) -> LazyFrame {
         /// model使用了HasQuery宏, 这里可以用query查询, 目前的简化不明显,
         /// 如果是web后端大量进行find方法的主键查询, 会带来很大便利
         use crate::schema::control_front::dsl::*;
@@ -38,6 +39,7 @@ impl Crud for ControlFront {
         let conn = &mut establish_connection();
 
         let results: Vec<Self> = Self::query()
+            .filter(line_id.eq(line_idx as i32))
             .filter(dt.ge(&s.naive_local()))
             .filter(dt.lt(&e.naive_local()))
             // .limit(5)
@@ -89,16 +91,16 @@ impl Crud for ControlFront {
 }
 
 impl Crud for Sidewall {
-    fn load_data_frame(_s: &DT, _e: &DT) -> LazyFrame {
+    fn load_data_frame(_line_id: u32, _s: &DT, _e: &DT) -> LazyFrame {
         Default::default() // todo!()
     }
-    fn load_scalar(line_id: i32) -> Option<Sidewall> {
+    fn load_scalar(line_id: u32) -> Option<Sidewall> {
         use crate::schema::sidewall as sw;
         use diesel::dsl::max;
 
         let conn = &mut establish_connection();
         let max_pk = sw::table
-            .filter(sw::line_id.eq(line_id))
+            .filter(sw::line_id.eq(line_id as i32))
             .select(max(sw::pk))
             .first::<Option<i32>>(conn)
             .unwrap()
@@ -114,7 +116,7 @@ impl Crud for Sidewall {
         }
     }
 
-    fn write_database(line_id: i32, df: LazyFrame) {
+    fn write_database(line_id: u32, df: LazyFrame) {
         NewSidewall::write_database(line_id, df);
     }
 }
@@ -129,13 +131,14 @@ impl NewSidewall {
             .finish(&mut df_cur)
             .unwrap();
         let json_str = str::from_utf8(&buf).expect("invalid json string!");
-        let new_sw = serde_json::from_str(json_str).unwrap();
-        // println!("{:?}", new_sw);
+        let new_sw: Vec<NewSidewall> = serde_json::from_str(json_str).unwrap();
+        println!("{:?}", new_sw);
         // println!("\n{}", json_str);
+        panic!("");
         return new_sw;
     }
 
-    fn write_database(line_id: i32, df: LazyFrame) {
+    fn write_database(line_id: u32, df: LazyFrame) {
         let sw_pre = Sidewall::load_scalar(line_id);
         let sw_vector = Self::translate(df);
         let conn = &mut establish_connection();

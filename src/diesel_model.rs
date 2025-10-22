@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Error};
 
 /// 如果有大量的数据表需要映射查询, 目前diesel提供的功能使用时过于繁琐,
 /// 可通过自定义derive macro来实现通用的查询功能, diesel重点关注
@@ -8,12 +8,32 @@ use serde::{Deserialize, Serialize};
 /// 使用, 如果在model struct上实现通用查询方法, 就需要能够通过model
 /// 关联获取到table, 这个功能需要自定义过程宏来实现. 由于宏代码难度
 /// 较大, 暂时先实现查询功能, 以后再优化代码
+///
+/// 正确的自定义反序列化函数：错误类型转换为 D::Error（即 serde_json::Error）
+fn parse_datetime<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // 1. 从反序列化器读取字符串
+    let datetime_str: Option<&str> = Option::deserialize(deserializer)?;
+
+    // 后续处理：将字符串解析为 NaiveDateTime
+    match datetime_str {
+        Some(s) => {
+            let dt = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+                .map_err(|e| D::Error::custom(format!("解析失败: {}", e)))?;
+            Ok(Some(dt))
+        }
+        None => Ok(None),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, HasQuery)]
 #[diesel(table_name = crate::schema::control_front)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct ControlFront {
     pub dt: NaiveDateTime,
+    // pub line_id: i32,
     pub control_end_dt: NaiveDateTime,
     pub front_zl_standard: f32,
     pub front_zk_standard: f32,
@@ -35,14 +55,18 @@ pub struct Sidewall {
     pub norm_name: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Insertable, Selectable, AsChangeset)]
+#[derive(Debug, Serialize, Deserialize, Insertable, Selectable, AsChangeset)]
+// #[serde(deny_unknown_fields)]
 #[diesel(table_name = crate::schema::sidewall)]
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct NewSidewall {
     // pub pk: i32,
     pub line_id: i32,
-    pub shift_name: Option<String>,
+    // pub shift_name: Option<String>,
+    pub control_rate: Option<f32>,
+    #[serde(deserialize_with = "parse_datetime")]
     pub front_start_datetime: Option<NaiveDateTime>,
+    #[serde(deserialize_with = "parse_datetime")]
     pub front_end_datetime: Option<NaiveDateTime>,
     pub front_norm_name: Option<String>,
     pub front_zl_standard: Option<f32>,
@@ -84,8 +108,9 @@ pub struct NewSidewall {
     pub front_zk_lt_lsl_count_mc: Option<i32>,
     pub front_zk_valid_count_mc: Option<i32>,
     pub front_count: Option<i32>,
-    pub front_control_rate: Option<f32>,
+    #[serde(deserialize_with = "parse_datetime")]
     pub behind_start_datetime: Option<NaiveDateTime>,
+    #[serde(deserialize_with = "parse_datetime")]
     pub behind_end_datetime: Option<NaiveDateTime>,
     pub behind_norm_name: Option<String>,
     pub behind_zl_standard: Option<f32>,
@@ -127,5 +152,4 @@ pub struct NewSidewall {
     pub behind_zk_lt_lsl_count_mc: Option<i32>,
     pub behind_zk_valid_count_mc: Option<i32>,
     pub behind_count: Option<i32>,
-    pub behind_control_rate: Option<f32>,
 }

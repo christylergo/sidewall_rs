@@ -1,0 +1,2 @@
+14:00:04 [DEBUG] (2) reqwest::connect: starting new connection: http://10.40.22.41/
+14:00:06 [DEBUG] (3) reqwest::connect: starting new connection: http://10.40.22.41/

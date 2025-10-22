@@ -63,7 +63,6 @@ CREATE TABLE batch_indices_sidewall (
   front_zk_lt_lsl_count_mc INTEGER,
   front_zk_valid_count_mc INTEGER,
   front_count INTEGER,
-  front_control_rate FLOAT,
   behind_start_datetime DATETIME,
   behind_end_datetime DATETIME,
   behind_norm_name VARCHAR(255),
@@ -106,7 +105,7 @@ CREATE TABLE batch_indices_sidewall (
   behind_zk_lt_lsl_count_mc INTEGER,
   behind_zk_valid_count_mc INTEGER,
   behind_count INTEGER,
-  behind_control_rate FLOAT,
+  control_rate FLOAT,
   id VARCHAR(36)  NOT NULL DEFAULT (UUID()),
   extra_info TEXT
 )
@@ -116,6 +115,7 @@ CREATE TABLE batch_indices_sidewall (
 query1 = """
 CREATE TABLE control_front (
 id VARCHAR(36) PRIMARY KEY  DEFAULT (UUID()),
+line_no INTEGER,
 start_time DATETIME,
 end_time DATETIME,
 std1 FLOAT,
@@ -126,23 +126,27 @@ plan_no VARCHAR(255)
 """
 
 query_insert = """
-INSERT INTO control_front (id, start_time, end_time, spec, std1, std2) 
-VALUES (:id, :start_time, :end_time, :spec, :std1, :std2);
+INSERT INTO control_front (id, line_no, start_time, end_time, spec, std1, std2) 
+VALUES (:id, :line_no, :start_time, :end_time, :spec, :std1, :std2);
 """
+
+query_drop = "DROP TABLE control_front"
 
 
 def sql_operation():
     df = pl.read_parquet("control_front.parquet").select(
-        "id", "start_time", "end_time", "spec", "std1", "std2"
+        "id", "line_no", "start_time", "end_time", "spec", "std1", "std2"
     )
     data_arr = df.to_dicts()
     # print(arr[0:15])
     engine = mysql_engine()
     with engine.connect() as conn:
+        # conn.execute(text(query_drop))
+        # conn.commit()
         # conn.execute(text(query1))
         # conn.commit()
-        # conn.execute(text(query_insert), data_arr)
-        # conn.commit()
+        conn.execute(text(query_insert), data_arr)
+        conn.commit()
         pass
 
 

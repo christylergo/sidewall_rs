@@ -94,7 +94,7 @@ impl Meta {
         self.tags.keys().cloned().collect()
     }
 
-    pub fn get_line_id(&self, line: &str) -> i32 {
+    pub fn get_line_id(&self, line: &str) -> u32 {
         self.basic.line_info[line]["line_id"].parse().unwrap()
     }
 
