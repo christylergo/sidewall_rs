@@ -1,3 +1,4 @@
+use crate::CONFIG_META;
 use crate::diesel_model::{ControlFront, NewSidewall, Sidewall};
 use crate::schema::sidewall;
 use chrono::{DateTime, Local, NaiveDateTime};
@@ -6,7 +7,7 @@ use dotenvy::dotenv;
 use polars::prelude::{
     self as pl, DataFrame, IntoLazy, JsonFormat, JsonWriter, LazyFrame, SerWriter,
 };
-use std::env;
+// use std::env;
 use std::io::Cursor;
 
 type DT = DateTime<Local>;
@@ -14,7 +15,8 @@ type DT = DateTime<Local>;
 fn establish_connection() -> MysqlConnection {
     dotenv().ok();
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    // let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = (&CONFIG_META).emit_database_url();
     MysqlConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
@@ -132,9 +134,8 @@ impl NewSidewall {
             .unwrap();
         let json_str = str::from_utf8(&buf).expect("invalid json string!");
         let new_sw: Vec<NewSidewall> = serde_json::from_str(json_str).unwrap();
-        println!("{:?}", new_sw);
+        // println!("{:?}", new_sw);
         // println!("\n{}", json_str);
-        panic!("");
         return new_sw;
     }
 
