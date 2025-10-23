@@ -13,7 +13,7 @@ fn main() {
             simplelog::ColorChoice::Auto,    // 自动决定是否启用彩色输出
         ),
         WriteLogger::new(
-            LevelFilter::Debug, // 文件输出 debug 及以上
+            LevelFilter::Info, // 文件输出 debug 及以上
             Config::default(),
             File::create("sidewall.log").unwrap(),
         ),

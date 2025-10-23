@@ -40,7 +40,7 @@ struct MySqlDataBase {
     user: String,
     pwd: String,
     db: String,
-    rdbms: String,
+    // rdbms: String,
 }
 
 type DT = DateTime<Local>;
@@ -122,13 +122,13 @@ impl Meta {
 }
 
 fn load_config() -> Meta {
-    let raw_path = format!(
-        "{}/{}",
-        env::var("HOME").unwrap(),
-        ".config/sidewall/sidewall_configs.toml"
-    );
-    let config_path = Path::new(&raw_path);
-    // let config_path = Path::new("src/sidewall_tags.toml");
+    // let raw_path = format!(
+    //     "{}/{}",
+    //     env::var("HOME").unwrap(),
+    //     ".config/sidewall/sidewall_configs.toml"
+    // );
+    // let config_path = Path::new(&raw_path);
+    let config_path = Path::new("sidewall_tags.toml");
     let toml_str = fs::read_to_string(config_path).unwrap();
     let meta: Meta = toml::from_str(&toml_str).unwrap();
 

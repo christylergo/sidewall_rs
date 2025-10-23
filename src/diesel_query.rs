@@ -1,9 +1,9 @@
 use crate::CONFIG_META;
 use crate::diesel_model::{ControlFront, NewSidewall, Sidewall};
-use crate::schema::sidewall;
+// use crate::schema::sidewall;
 use chrono::{DateTime, Local, NaiveDateTime};
 use diesel::prelude::*;
-use dotenvy::dotenv;
+// use dotenvy::dotenv;
 use polars::prelude::{
     self as pl, DataFrame, IntoLazy, JsonFormat, JsonWriter, LazyFrame, SerWriter,
 };
@@ -13,7 +13,7 @@ use std::io::Cursor;
 type DT = DateTime<Local>;
 
 fn establish_connection() -> MysqlConnection {
-    dotenv().ok();
+    // dotenv().ok();
 
     // let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let database_url = (&CONFIG_META).emit_database_url();
@@ -126,6 +126,7 @@ impl Crud for Sidewall {
 impl NewSidewall {
     fn translate(df: LazyFrame) -> Vec<NewSidewall> {
         let mut df_cur = df.collect().unwrap();
+        // println!("{:?}", df_cur);
         let mut buf = Vec::new();
         let cursor = Cursor::new(&mut buf);
         let _ = JsonWriter::new(cursor)

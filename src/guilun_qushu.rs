@@ -1,6 +1,6 @@
 use crate::CONFIG_META;
 use chrono::{DateTime, Duration, Local};
-use log::{debug, error, info};
+use log::{error, info};
 use polars::prelude::*;
 use reqwest::blocking::Client;
 use serde::Deserialize;
@@ -20,7 +20,7 @@ struct RawStr {
 #[derive(Debug, Deserialize)]
 pub struct DataFrameGenerator {
     line: String,
-    overall_start: DT,
+    // overall_start: DT,
     current_start: DT,
     overall_end: DT,
 }
@@ -29,7 +29,7 @@ impl DataFrameGenerator {
     pub fn new(line: &str, overall_start: &DT, overall_end: &DT) -> Self {
         DataFrameGenerator {
             line: line.to_string(),
-            overall_start: overall_start.clone(),
+            // overall_start: overall_start.clone(),
             current_start: *overall_start - STEP,
             overall_end: overall_end.clone().min(Local::now()),
         }
@@ -172,6 +172,7 @@ fn emit_qushu_dataframe(line: &str, start: &DT, end: &DT) -> LazyFrame {
     }
 
     if df_vec.len() > 0 {
+        info!("{}至{}已读取.", &start, &end);
         concat(df_vec, Default::default())
             .unwrap()
             .with_columns([
@@ -189,7 +190,7 @@ fn emit_qushu_dataframe(line: &str, start: &DT, end: &DT) -> LazyFrame {
             .select([all()
                 .as_expr()
                 .fill_null_with_strategy(FillNullStrategy::Forward(None))])
-            .filter(col("status").is_not_null())
+            // .filter(col("status").is_not_null())
             .sort(["line_id", "dt"], Default::default())
     } else {
         LazyFrame::default()
@@ -200,8 +201,8 @@ fn emit_qushu_dataframe(line: &str, start: &DT, end: &DT) -> LazyFrame {
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use std::env;
-    use std::fs::File;
+    // use std::env;
+    // use std::fs::File;
     // use std::path::Path;
 
     #[test]

@@ -46,7 +46,7 @@ pub struct ControlFront {
 #[diesel(check_for_backend(diesel::mysql::Mysql))]
 pub struct Sidewall {
     pub pk: i32,
-    pub line_id: i32,
+    // pub line_id: i32,
     #[diesel(column_name = "behind_start_datetime")]
     pub dt: Option<NaiveDateTime>,
     #[diesel(column_name = "behind_end_datetime")]

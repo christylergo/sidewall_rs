@@ -134,8 +134,14 @@ query_drop = "DROP TABLE control_front"
 
 
 def sql_operation():
-    df = pl.read_parquet("control_front.parquet").select(
-        "id", "line_no", "start_time", "end_time", "spec", "std1", "std2"
+    df = pl.read_csv("/home/td/workspace/control_front.csv").select(
+        "id",
+        "line_no",
+        pl.col("start_time").str.strptime(pl.Datetime("ms"), r"%d/%m/%Y %H:%M:%S"),
+        pl.col("end_time").str.strptime(pl.Datetime("ms"), r"%d/%m/%Y %H:%M:%S"),
+        "spec",
+        "std1",
+        "std2",
     )
     data_arr = df.to_dicts()
     # print(arr[0:15])

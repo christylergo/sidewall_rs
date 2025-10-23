@@ -307,7 +307,7 @@ fn align_batch(df_lazy: LazyFrame) -> LazyFrame {
         )
         .unwrap()
         .lazy()
-        .select([all().exclude_cols(["^.+sub$"]).as_expr()])
+        // .select([all().exclude_cols(["^.+sub$"]).as_expr()])
         .sort(["behind_start_datetime"], Default::default());
 
     // println!("{:?}", df.clone().collect().unwrap());
@@ -353,7 +353,7 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
                 .collect::<Vec<_>>(),
         )
         .with_columns([all_trimed("front", 30), all_trimed("behind", 30)]);
-    // println!("{:?}", df_lazy.clone().collect());
+    println!("{:?}", df_lazy.clone().collect());
 
     let df_lazy_1 = df_lazy
         .join(
@@ -438,8 +438,8 @@ mod tests {
     fn assemble_df_works() {
         let (line, s, e) = (
             "SW01",
-            Local.with_ymd_and_hms(2025, 10, 17, 0, 0, 0).unwrap(),
-            Local.with_ymd_and_hms(2025, 10, 18, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 6, 1, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 6, 18, 0, 0, 0).unwrap(),
         );
         let df_front = ControlFront::load_data_frame(104, &s, &e);
         let data_pool = DataFrameGenerator::new(line, &s, &e);
