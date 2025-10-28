@@ -169,10 +169,10 @@ impl NewSidewall {
             let sw_first = &new_sw_vec[0];
 
             // 需要判断区间交界处的批次是否要更新或者丢弃
-            let mut new_sw_slice: &[NewSidewall];
+            let new_sw_slice: &[NewSidewall];
 
             if sw_first.behind_start_datetime.unwrap() == dt {
-                if sw_first.behind_end_datetime.unwrap() < end_datetime {
+                if sw_first.behind_end_datetime.unwrap() > end_datetime {
                     // update unfinished previous sidewall batch
                     let _ = diesel::update(sidewall)
                         .filter(pk.eq(pkey))
@@ -185,13 +185,14 @@ impl NewSidewall {
                 }
                 new_sw_slice = &new_sw_vec[1..];
             } else {
-                if sw_first.behind_end_datetime.unwrap() > dt {
+                if sw_first.behind_start_datetime.unwrap() < end_datetime {
                     if new_sw_vec.len() < 2 {
                         return;
                     }
                     new_sw_slice = &new_sw_vec[1..];
+                } else {
+                    new_sw_slice = &new_sw_vec;
                 }
-                new_sw_slice = &new_sw_vec;
             }
             // insert into sidewall table
             let _ = diesel::insert_into(sidewall)
