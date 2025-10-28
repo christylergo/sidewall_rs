@@ -53,7 +53,7 @@ fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
     limit: (tolerace, valid, by_percentage)
     */
     // segments => vec![prefix, indices, suffix]
-    // with caculation => vec![prefix, indices, caculation, suffix]
+    // with calculation => vec![prefix, indices, calculation, suffix]
     // USL: Upper Specification Limit
     // LSL: Lower Specification Limit
     // μ(mu): Mean
@@ -125,7 +125,7 @@ fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
         .collect()
 }
 
-fn caculation_exprs(segments: Vec<String>) -> Vec<Expr> {
+fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
     // CP = (USL - LSL) / (6σ)
     // CA = μ - (USL + LSL) / 2
     // CPK = min( (USL - μ)/(3σ), (μ - LSL)/(3σ) )
@@ -254,7 +254,7 @@ fn caculation_exprs(segments: Vec<String>) -> Vec<Expr> {
 
 fn align_batch(df_lazy: LazyFrame) -> LazyFrame {
     // use chrono::TimeZone;
-    use chrono_tz::Asia::Shanghai as tz;
+    // use chrono_tz::Asia::Shanghai as tz;
 
     let df_f = df_lazy
         .clone()
@@ -317,7 +317,7 @@ fn align_batch(df_lazy: LazyFrame) -> LazyFrame {
 
 pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
     let meta = &CONFIG_META;
-    let cacu = meta.get_caculate();
+    let cacu = meta.get_calculate();
     let limit_map = meta.get_limit();
     let origin_schema = df_sw.clone().collect_schema().unwrap();
 
@@ -408,7 +408,7 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
                         .filter_map(|suf| {
                             let segments = vec![prf.to_string(), indi.to_string(), suf.to_string()];
                             if origin_schema.contains(&segments.clone().join("_")) {
-                                Some(caculation_exprs(segments))
+                                Some(calculation_exprs(segments))
                             } else {
                                 None
                             }
@@ -421,7 +421,23 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
     // println!("{:?}", df_lazy_3.clone().collect());
     // df_lazy_3
 
-    let df_ready = align_batch(df_lazy_3.clone());
+    // 计算前后端的zl,zk对应的cpk汇总均值 (op + mc) / 2
+    let df_lazy_4 = df_lazy_3.with_columns(
+        cacu["prefix"]
+            .iter()
+            .flat_map(|prf| {
+                cacu["indices"].iter().map(|indi| {
+                    (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
+                        let cpk_col = format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
+                        acc + col(cpk_col)
+                    }) / lit(2_f32))
+                    .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi))
+                })
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let df_ready = align_batch(df_lazy_4.clone());
 
     df_ready
 }

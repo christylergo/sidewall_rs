@@ -112,7 +112,7 @@ impl Meta {
         return "";
     }
 
-    pub fn get_caculate(&self) -> &HashMap<String, Vec<String>> {
+    pub fn get_calculate(&self) -> &HashMap<String, Vec<String>> {
         &self.basic.calculate
     }
 

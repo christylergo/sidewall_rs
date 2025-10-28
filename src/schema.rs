@@ -72,6 +72,8 @@ diesel::table! {
         front_zk_gt_usl_count_mc -> Nullable<Integer>,
         front_zk_lt_lsl_count_mc -> Nullable<Integer>,
         front_zk_valid_count_mc -> Nullable<Integer>,
+        front_zl_cpk_avg -> Nullable<Float>,
+        front_zk_cpk_avg -> Nullable<Float>,
         front_count -> Nullable<Integer>,
         front_control_rate -> Nullable<Float>,
         behind_start_datetime -> Nullable<Datetime>,
@@ -116,6 +118,8 @@ diesel::table! {
         behind_zk_gt_usl_count_mc -> Nullable<Integer>,
         behind_zk_lt_lsl_count_mc -> Nullable<Integer>,
         behind_zk_valid_count_mc -> Nullable<Integer>,
+        behind_zl_cpk_avg -> Nullable<Float>,
+        behind_zk_cpk_avg -> Nullable<Float>,
         behind_count -> Nullable<Integer>,
         control_rate -> Nullable<Float>,
         #[max_length = 36]
