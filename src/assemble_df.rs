@@ -422,16 +422,34 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
     // df_lazy_3
 
     // 计算前后端的zl,zk对应的cpk汇总均值 (op + mc) / 2
+    // rate汇总平均 (qualified_op + qualified_mc) / (valid_op + valid_mc)
     let df_lazy_4 = df_lazy_3.with_columns(
         cacu["prefix"]
             .iter()
             .flat_map(|prf| {
-                cacu["indices"].iter().map(|indi| {
-                    (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
-                        let cpk_col = format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
-                        acc + col(cpk_col)
-                    }) / lit(2_f32))
-                    .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi))
+                cacu["indices"].iter().flat_map(|indi| {
+                    vec![
+                        (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
+                            let cpk_col = format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
+                            acc + col(cpk_col)
+                        }) / lit(2_f32))
+                        .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi)),
+                        (cacu["suffix"].iter().fold(lit(0_i32), |acc, suf| {
+                            let qualified_col =
+                                format!("{}_{}_qualified_count_{}", prf.to_string(), indi, suf);
+                            acc + col(qualified_col)
+                        }) / cacu["suffix"].iter().fold(lit(0_i32), |acc, suf| {
+                            let valid_col =
+                                format!("{}_{}_valid_count_{}", prf.to_string(), indi, suf);
+                            acc + col(valid_col)
+                        }))
+                        .fill_nan(Null {}.lit())
+                        .alias(format!(
+                            "{}_{}_rate_avg",
+                            prf.to_string(),
+                            indi
+                        )),
+                    ]
                 })
             })
             .collect::<Vec<_>>(),

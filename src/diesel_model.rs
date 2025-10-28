@@ -109,6 +109,8 @@ pub struct NewSidewall {
     pub front_zk_valid_count_mc: Option<i32>,
     pub front_zl_cpk_avg: Option<f32>,
     pub front_zk_cpk_avg: Option<f32>,
+    pub front_zl_rate_avg: Option<f32>,
+    pub front_zk_rate_avg: Option<f32>,
     pub front_count: Option<i32>,
     #[serde(deserialize_with = "parse_datetime")]
     pub behind_start_datetime: Option<NaiveDateTime>,
@@ -155,5 +157,7 @@ pub struct NewSidewall {
     pub behind_zk_valid_count_mc: Option<i32>,
     pub behind_zl_cpk_avg: Option<f32>,
     pub behind_zk_cpk_avg: Option<f32>,
+    pub behind_zl_rate_avg: Option<f32>,
+    pub behind_zk_rate_avg: Option<f32>,
     pub behind_count: Option<i32>,
 }

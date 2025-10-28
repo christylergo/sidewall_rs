@@ -3,7 +3,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::LazyLock;
-use std::{env, fs};
+// use std::{env, fs};
+use std::fs;
 use urlencoding::encode;
 
 pub static CONFIG_META: LazyLock<Meta> = LazyLock::new(load_config);
