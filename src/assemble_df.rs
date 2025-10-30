@@ -45,6 +45,26 @@ fn rectify_norm_name(prefix: &[String]) -> Vec<Expr> {
         })
         .collect()
 }
+fn identify_standard(segments_vec: Vec<Vec<String>>) -> Expr {
+    let standard_col = &format!("{}_{}_standard", segments_vec[0][0], segments_vec[0][1]);
+    let mut acc = lit(0_f32);
+    let mut count = 0;
+    for segments in &segments_vec {
+        let col_name = &format!("{}_{}_{}", segments[0], segments[1], segments[2]);
+        let raw_mean = col(col_name).mean(); //raw mean
+        acc = acc + raw_mean;
+        count += 1;
+    }
+    let bipartisan_mean = acc / lit(count);
+    let standard = when(col(standard_col).is_not_null())
+        .then(col(standard_col))
+        .otherwise(bipartisan_mean)
+        .mean()
+        .over([format!("{}_batch", segments_vec[0][0]).as_str()])
+        .alias(standard_col);
+
+    return standard;
+}
 
 fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
     /*
@@ -59,8 +79,6 @@ fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
     // μ(mu): Mean
     // σ(sigma): Standard Variance for sample
 
-    let col_name = &format!("{}_{}_{}", segments[0], segments[1], segments[2]);
-
     let batch_col = &format!("{}_batch", segments[0]);
     let standard_col = &format!("{}_{}_standard", segments[0], segments[1]);
     let usl_col = &format!("{}_{}_usl", segments[0], segments[1]);
@@ -68,13 +86,7 @@ fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
     let usl_valid_col = &format!("{}_{}_usl_valid", segments[0], segments[1]);
     let lsl_valid_col = &format!("{}_{}_lsl_valid", segments[0], segments[1]);
 
-    let raw_mean = col(col_name).mean(); //raw mean
-
-    let standard = when(col(standard_col).is_not_null())
-        .then(col(standard_col))
-        .otherwise(raw_mean.clone())
-        .mean()
-        .alias(standard_col);
+    let standard = col(standard_col);
     let usl = if limit.2 {
         (standard.clone() * lit(1.0 + limit.0)).alias(usl_col) // by percentage 
     } else {
@@ -110,7 +122,7 @@ fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
 
     // 标准和上下限, op, mc侧共享一套, 不能重复
     let exprs = if segments[2] == "op" {
-        vec![standard, usl, lsl, usl_valid, lsl_valid]
+        vec![usl, lsl, usl_valid, lsl_valid]
     } else {
         vec![]
     };
@@ -119,7 +131,7 @@ fn prelude_exprs(segments: Vec<String>, limit: &(f32, f32, bool)) -> Vec<Expr> {
         .into_iter()
         .map(|raw_expr| {
             raw_expr
-                .round(4, Default::default())
+                .round(6, Default::default())
                 .over([batch_col.as_str()])
         })
         .collect()
@@ -160,21 +172,21 @@ fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
     let mean = valid
         .clone()
         .mean()
-        .round(2, Default::default())
+        .round(4, Default::default())
         .alias(splice("mean"));
 
     let cp = ((col(usl_col) - col(lsl_col)) / (lit(6) * stdvar.clone()))
         .fill_nan(Null {}.lit())
-        .round(2, Default::default())
+        .round(4, Default::default())
         .alias(splice("cp"));
     let ca = (mean.clone() - (col(usl_col) + col(lsl_col)) / lit(2))
         .fill_nan(Null {}.lit())
-        .round(2, Default::default())
+        .round(4, Default::default())
         .alias(splice("ca"));
     // 上下限对称, 可以使用简化的cpk公式
     let cpk = (cp.clone() - (mean.clone() - col(standard_col)).abs() / (lit(3) * stdvar.clone()))
         .fill_nan(Null {}.lit())
-        .round(2, Default::default())
+        .round(4, Default::default())
         .alias(splice("cpk"));
 
     let qualified_count = qualified.clone().count().alias(splice("qualified_count"));
@@ -212,7 +224,7 @@ fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
             .cast(DataType::Float64)
             / valid_pair.count().cast(DataType::Float64))
         .fill_nan(Null {}.lit())
-        .round(4, Default::default())
+        .round(6, Default::default())
         .alias(splice("rate"))
     };
 
@@ -225,7 +237,7 @@ fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
             vec![
                 (cc.cast(DataType::Float64) / ac.clone().cast(DataType::Float64))
                     .fill_nan(Null {}.lit())
-                    .round(4, Default::default())
+                    .round(6, Default::default())
                     .alias("control_rate"),
             ]
         } else {
@@ -376,26 +388,49 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
         );
     // println!("{:?}", df_lazy_1.clone().collect());
 
-    let df_lazy_2 = df_lazy_1.with_columns(
-        cacu["prefix"]
-            .iter()
-            .flat_map(|prf| {
-                cacu["indices"].iter().flat_map(|indi| {
-                    cacu["suffix"]
-                        .iter()
-                        .filter_map(|suf| {
+    let df_lazy_2 = df_lazy_1
+        .with_columns(
+            cacu["prefix"]
+                .iter()
+                .flat_map(|prf| {
+                    cacu["indices"].iter().filter_map(|indi| {
+                        let mut segments_vec = Vec::new();
+                        for suf in &cacu["suffix"] {
                             let segments = vec![prf.to_string(), indi.to_string(), suf.to_string()];
                             if origin_schema.contains(&segments.clone().join("_")) {
-                                Some(prelude_exprs(segments, &limit_map[indi]))
-                            } else {
-                                None
+                                segments_vec.push(segments);
                             }
-                        })
-                        .flatten()
+                        }
+                        if segments_vec.len() > 0 {
+                            Some(identify_standard(segments_vec))
+                        } else {
+                            None
+                        }
+                    })
                 })
-            })
-            .collect::<Vec<_>>(),
-    );
+                .collect::<Vec<_>>(),
+        )
+        .with_columns(
+            cacu["prefix"]
+                .iter()
+                .flat_map(|prf| {
+                    cacu["indices"].iter().flat_map(|indi| {
+                        cacu["suffix"]
+                            .iter()
+                            .filter_map(|suf| {
+                                let segments =
+                                    vec![prf.to_string(), indi.to_string(), suf.to_string()];
+                                if origin_schema.contains(&segments.clone().join("_")) {
+                                    Some(prelude_exprs(segments, &limit_map[indi]))
+                                } else {
+                                    None
+                                }
+                            })
+                            .flatten()
+                    })
+                })
+                .collect::<Vec<_>>(),
+        );
     // println!("{:?}", df_lazy_2.clone().collect());
 
     let df_lazy_3 = df_lazy_2.with_columns(
@@ -427,30 +462,54 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
         cacu["prefix"]
             .iter()
             .flat_map(|prf| {
-                cacu["indices"].iter().flat_map(|indi| {
-                    vec![
-                        (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
-                            let cpk_col = format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
-                            acc + col(cpk_col)
-                        }) / lit(2_f32))
-                        .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi)),
-                        (cacu["suffix"].iter().fold(lit(0_i32), |acc, suf| {
-                            let qualified_col =
-                                format!("{}_{}_qualified_count_{}", prf.to_string(), indi, suf);
-                            acc + col(qualified_col)
-                        }) / cacu["suffix"].iter().fold(lit(0_i32), |acc, suf| {
-                            let valid_col =
-                                format!("{}_{}_valid_count_{}", prf.to_string(), indi, suf);
-                            acc + col(valid_col)
-                        }))
-                        .fill_nan(Null {}.lit())
-                        .alias(format!(
-                            "{}_{}_rate_avg",
-                            prf.to_string(),
-                            indi
-                        )),
-                    ]
-                })
+                cacu["indices"]
+                    .iter()
+                    // there is no behind_zl tag, so kick it out
+                    .filter_map(|indi| {
+                        let segments =
+                            vec![prf.to_string(), indi.to_string(), cacu["suffix"][0].clone()];
+                        if origin_schema.contains(&segments.join("_")) {
+                            Some(vec![
+                                (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
+                                    let cpk_col =
+                                        format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
+                                    acc + col(cpk_col)
+                                }) / lit(2_f32))
+                                .round(4, Default::default())
+                                .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi)),
+                                (cacu["suffix"]
+                                    .iter()
+                                    .fold(lit(0_i32), |acc, suf| {
+                                        let qualified_col = format!(
+                                            "{}_{}_qualified_count_{}",
+                                            prf.to_string(),
+                                            indi,
+                                            suf
+                                        );
+                                        acc + col(qualified_col)
+                                    })
+                                    .cast(DataType::Float64)
+                                    / cacu["suffix"]
+                                        .iter()
+                                        .fold(lit(0_i32), |acc, suf| {
+                                            let valid_col = format!(
+                                                "{}_{}_valid_count_{}",
+                                                prf.to_string(),
+                                                indi,
+                                                suf
+                                            );
+                                            acc + col(valid_col)
+                                        })
+                                        .cast(DataType::Float64))
+                                .round(6, Default::default())
+                                .fill_nan(Null {}.lit())
+                                .alias(format!("{}_{}_rate_avg", prf.to_string(), indi)),
+                            ])
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten()
             })
             .collect::<Vec<_>>(),
     );
