@@ -38,7 +38,18 @@ pub struct ControlFront {
     pub front_zl_standard: f32,
     pub front_zk_standard: f32,
     pub front_norm_name: String,
-    // pub plan_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, HasQuery)]
+#[diesel(table_name = crate::schema::control_behind)]
+#[diesel(check_for_backend(diesel::mysql::Mysql))]
+pub struct ControlBehind {
+    pub dt: NaiveDateTime,
+    // pub line_id: i32,
+    pub control_end_dt: NaiveDateTime,
+    pub behind_zl_standard: f32,
+    pub behind_zk_standard: f32,
+    pub behind_norm_name: String,
 }
 
 #[derive(Debug, Queryable, Selectable)]

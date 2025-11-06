@@ -200,7 +200,11 @@ fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
         .lt(col(lsl_col))
         .sum()
         .alias(splice("lt_lsl_count"));
-    let valid_count = valid.clone().count().alias(splice("valid_count"));
+    let valid_count = valid
+        .clone()
+        .is_not_null()
+        .sum()
+        .alias(splice("valid_count"));
 
     // let rate = (qualified_count.clone().cast(DataType::Float64)
     //     / valid_count.clone().cast(DataType::Float64))
@@ -222,7 +226,7 @@ fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
             .filter(is_qualified_pair)
             .count()
             .cast(DataType::Float64)
-            / valid_pair.count().cast(DataType::Float64))
+            / valid_pair.is_not_null().sum().cast(DataType::Float64))
         .fill_nan(Null {}.lit())
         .round(6, Default::default())
         .alias(splice("rate"))
@@ -327,7 +331,7 @@ fn align_batch(df_lazy: LazyFrame) -> LazyFrame {
     df
 }
 
-pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
+pub fn assemble(df_front: LazyFrame, df_behind: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
     let meta = &CONFIG_META;
     let cacu = meta.get_calculate();
     let limit_map = meta.get_limit();
@@ -335,39 +339,13 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
 
     /*batch expression should be applied to lazyframe first */
     let df_lazy = df_sw
-        .filter(col("status").and(col("line_velocity_real").gt(5))) // 基础剔除
         .with_columns(rectify_norm_name(&cacu["prefix"]))
-        .group_by_dynamic(
-            col("dt"),
-            [],
-            DynamicGroupOptions {
-                every: Duration::parse("10s"), // 10秒窗口
-                period: Duration::parse("10s"),
-                offset: Duration::parse("0s"), // 不偏移
-                ..Default::default()
-            },
-        )
-        .agg([
-            col("line_id").first(),
-            dtype_col(&DataType::String).as_selector().as_expr().first(),
-            dtype_col(&DataType::Float64).as_selector().as_expr().mean(),
-            dtype_col(&DataType::Boolean)
-                .as_selector()
-                .as_expr()
-                .any(true),
-            dtype_col(&DataType::UInt32).as_selector().as_expr().first(),
-        ])
-        .sort(["dt"], Default::default())
         .with_columns(
             cacu["prefix"]
                 .iter()
                 .map(|prf| identity_batch(prf, &cacu["batch_by"]))
                 .collect::<Vec<_>>(),
         )
-        .with_columns([all_trimed("front", 30), all_trimed("behind", 30)]);
-    println!("{:?}", df_lazy.clone().collect());
-
-    let df_lazy_1 = df_lazy
         .join(
             df_front.with_columns(rectify_norm_name(&vec!["front".into()])),
             [col("dt"), col("front_norm_name")],
@@ -385,7 +363,80 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
             when(col("control_end_dt").gt_eq(col("dt")))
                 .then(cols(["control_end_dt", "front_zl_standard", "front_zk_standard"]).as_expr())
                 .otherwise(Null {}.lit()),
-        );
+        )
+        .join(
+            df_behind
+                .filter(col("behind_zk_standard").gt(0))
+                .with_column(
+                    ((col("dt").dt().timestamp(TimeUnit::Milliseconds)
+                        + col("control_end_dt").dt().timestamp(TimeUnit::Milliseconds))
+                        / lit(2000)
+                        * lit(1000))
+                    .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
+                    .alias("mid_dt"),
+                ),
+            [col("dt"), col("behind_norm_name")],
+            [col("mid_dt"), col("behind_norm_name")],
+            JoinArgs::new(JoinType::Left),
+        )
+        .sort(["dt"], Default::default())
+        .with_column(
+            col("behind_zk_standard")
+                .filter(col("behind_zk_standard").is_not_null())
+                .get(0)
+                .over(["behind_batch"]),
+        )
+        .with_columns([
+            when(col("status").and(col("top_extruder_velocity").gt(5)))
+                .then(col("front_batch"))
+                .otherwise(Null {}.lit()),
+            when(col("status").and(col("line_velocity_real").gt(5)))
+                .then(col("behind_batch"))
+                .otherwise(Null {}.lit()),
+        ]); // 基础剔除
+    // let mut df_eager = df_lazy.clone().collect().unwrap();
+    // let mut file = std::fs::File::create("/home/td/workspace/test_lazy.parquet").unwrap();
+    // polars::prelude::ParquetWriter::new(&mut file)
+    //     .finish(&mut df_eager)
+    //     .unwrap();
+    // println!("{:?}", df_lazy.clone().collect());
+
+    let df_lazy_1 = df_lazy
+        .group_by_dynamic(
+            col("dt"),
+            [],
+            DynamicGroupOptions {
+                every: Duration::parse("10s"), // 10秒窗口
+                period: Duration::parse("10s"),
+                offset: Duration::parse("0s"), // 不偏移
+                ..Default::default()
+            },
+        )
+        .agg([
+            col("line_id").first(),
+            dtype_col(&DataType::String).as_selector().as_expr().first(),
+            dtype_col(&DataType::Float32)
+                .as_selector()
+                .as_expr()
+                .first(),
+            dtype_col(&DataType::Float64)
+                .as_selector()
+                .as_expr()
+                .first(),
+            dtype_col(&DataType::Boolean)
+                .as_selector()
+                .as_expr()
+                .any(true),
+            dtype_col(&DataType::UInt32).as_selector().as_expr().first(),
+        ])
+        .sort(["dt"], Default::default())
+        .with_columns([all_trimed("front", 30), all_trimed("behind", 30)]);
+
+    // let mut df_eager = df_lazy_1.clone().collect().unwrap();
+    // let mut file = std::fs::File::create("/home/td/workspace/test.parquet").unwrap();
+    // polars::prelude::ParquetWriter::new(&mut file)
+    //     .finish(&mut df_eager)
+    //     .unwrap();
     // println!("{:?}", df_lazy_1.clone().collect());
 
     let df_lazy_2 = df_lazy_1
@@ -431,6 +482,12 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
                 })
                 .collect::<Vec<_>>(),
         );
+
+    // let mut df_eager = df_lazy_2.clone().collect().unwrap();
+    // let mut file = std::fs::File::create("/home/td/workspace/test.parquet").unwrap();
+    // polars::prelude::ParquetWriter::new(&mut file)
+    //     .finish(&mut df_eager)
+    //     .unwrap();
     // println!("{:?}", df_lazy_2.clone().collect());
 
     let df_lazy_3 = df_lazy_2.with_columns(
@@ -458,61 +515,63 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
 
     // 计算前后端的zl,zk对应的cpk汇总均值 (op + mc) / 2
     // rate汇总平均 (qualified_op + qualified_mc) / (valid_op + valid_mc)
-    let df_lazy_4 = df_lazy_3.with_columns(
-        cacu["prefix"]
-            .iter()
-            .flat_map(|prf| {
-                cacu["indices"]
-                    .iter()
-                    // there is no behind_zl tag, so kick it out
-                    .filter_map(|indi| {
-                        let segments =
-                            vec![prf.to_string(), indi.to_string(), cacu["suffix"][0].clone()];
-                        if origin_schema.contains(&segments.join("_")) {
-                            Some(vec![
-                                (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
-                                    let cpk_col =
-                                        format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
-                                    acc + col(cpk_col)
-                                }) / lit(2_f32))
-                                .round(4, Default::default())
-                                .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi)),
-                                (cacu["suffix"]
-                                    .iter()
-                                    .fold(lit(0_i32), |acc, suf| {
-                                        let qualified_col = format!(
-                                            "{}_{}_qualified_count_{}",
-                                            prf.to_string(),
-                                            indi,
-                                            suf
-                                        );
-                                        acc + col(qualified_col)
-                                    })
-                                    .cast(DataType::Float64)
-                                    / cacu["suffix"]
+    let df_lazy_4 = df_lazy_3
+        .with_columns(
+            cacu["prefix"]
+                .iter()
+                .flat_map(|prf| {
+                    cacu["indices"]
+                        .iter()
+                        // there is no behind_zl tag, so kick it out
+                        .filter_map(|indi| {
+                            let segments =
+                                vec![prf.to_string(), indi.to_string(), cacu["suffix"][0].clone()];
+                            if origin_schema.contains(&segments.join("_")) {
+                                Some(vec![
+                                    (cacu["suffix"].iter().fold(lit(0_f32), |acc, suf| {
+                                        let cpk_col =
+                                            format!("{}_{}_cpk_{}", prf.to_string(), indi, suf);
+                                        acc + col(cpk_col)
+                                    }) / lit(2_f32))
+                                    .round(4, Default::default())
+                                    .alias(format!("{}_{}_cpk_avg", prf.to_string(), indi)),
+                                    (cacu["suffix"]
                                         .iter()
                                         .fold(lit(0_i32), |acc, suf| {
-                                            let valid_col = format!(
-                                                "{}_{}_valid_count_{}",
+                                            let qualified_col = format!(
+                                                "{}_{}_qualified_count_{}",
                                                 prf.to_string(),
                                                 indi,
                                                 suf
                                             );
-                                            acc + col(valid_col)
+                                            acc + col(qualified_col)
                                         })
-                                        .cast(DataType::Float64))
-                                .round(6, Default::default())
-                                .fill_nan(Null {}.lit())
-                                .alias(format!("{}_{}_rate_avg", prf.to_string(), indi)),
-                            ])
-                        } else {
-                            None
-                        }
-                    })
-                    .flatten()
-            })
-            .collect::<Vec<_>>(),
-    );
+                                        .cast(DataType::Float64)
+                                        / cacu["suffix"]
+                                            .iter()
+                                            .fold(lit(0_i32), |acc, suf| {
+                                                let valid_col = format!(
+                                                    "{}_{}_valid_count_{}",
+                                                    prf.to_string(),
+                                                    indi,
+                                                    suf
+                                                );
+                                                acc + col(valid_col)
+                                            })
+                                            .cast(DataType::Float64))
+                                    .round(6, Default::default())
+                                    .fill_nan(Null {}.lit())
+                                    .alias(format!("{}_{}_rate_avg", prf.to_string(), indi)),
+                                ])
+                            } else {
+                                None
+                            }
+                        })
+                        .flatten()
+                })
+                .collect::<Vec<_>>(),
+        )
+        .fill_nan(Null {}.lit());
 
     let df_ready = align_batch(df_lazy_4.clone());
 
@@ -522,7 +581,7 @@ pub fn assemble(df_front: LazyFrame, df_sw: LazyFrame) -> LazyFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diesel_model::ControlFront;
+    use crate::diesel_model::{ControlBehind, ControlFront};
     use crate::diesel_query::Crud;
     use crate::guilun_qushu::DataFrameGenerator;
     use chrono::{Local, TimeZone};
@@ -531,15 +590,29 @@ mod tests {
     fn assemble_df_works() {
         let (line, s, e) = (
             "SW01",
-            Local.with_ymd_and_hms(2025, 6, 1, 0, 0, 0).unwrap(),
-            Local.with_ymd_and_hms(2025, 6, 18, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 10, 25, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 10, 26, 0, 0, 0).unwrap(),
         );
         let df_front = ControlFront::load_data_frame(104, &s, &e);
+        let df_behind = ControlBehind::load_data_frame(104, &s, &e).with_column(
+            ((col("dt").dt().timestamp(TimeUnit::Milliseconds)
+                + col("control_end_dt").dt().timestamp(TimeUnit::Milliseconds))
+                / lit(2000)
+                * lit(1000))
+            .cast(DataType::Datetime(TimeUnit::Milliseconds, None))
+            .alias("mid_dt"),
+        );
+        // println!("{}", df_behind.clone().collect().unwrap());
         let data_pool = DataFrameGenerator::new(line, &s, &e);
         for df in data_pool {
-            let _df_sw = assemble(df_front.clone(), df);
-            // let df_eager = df_sw.collect().unwrap();
-            // println!("{df_eager}");
+            let _df_sw = assemble(df_front.clone(), df_behind.clone(), df);
+            let mut df_eager = _df_sw.collect().unwrap();
+            // let mut df_eager = df_behind.collect().unwrap();
+            println!("{df_eager}");
+            let mut file = std::fs::File::create("/home/td/workspace/test.parquet").unwrap();
+            polars::prelude::ParquetWriter::new(&mut file)
+                .finish(&mut df_eager)
+                .unwrap();
             break;
         }
     }

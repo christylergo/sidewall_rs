@@ -16,7 +16,7 @@ def mysql_engine() -> Engine:
     return engine
 
 
-query = """
+query_create_sidewall = """
 CREATE TABLE batch_indices_sidewall (
   pk INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
   line_id INTEGER NOT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE batch_indices_sidewall (
 """
 
 
-query1 = """
+query_create_control_front = """
 CREATE TABLE control_front (
 id VARCHAR(36) PRIMARY KEY  DEFAULT (UUID()),
 line_no INTEGER,
@@ -124,36 +124,41 @@ start_time DATETIME,
 end_time DATETIME,
 std1 FLOAT,
 std2 FLOAT,
-spec VARCHAR(255),
-plan_no VARCHAR(255)
+spec VARCHAR(255)
+)
+"""
+
+query_create_control_behind = """
+CREATE TABLE control_behind (
+id VARCHAR(36) PRIMARY KEY  DEFAULT (UUID()),
+line_no INTEGER,
+start_time DATETIME,
+end_time DATETIME,
+std1 FLOAT,
+std2 FLOAT,
+spec VARCHAR(255)
 )
 """
 
 query_insert = """
-INSERT INTO control_front (id, line_no, start_time, end_time, spec, std1, std2) 
+INSERT INTO control_behind (id, line_no, start_time, end_time, spec, std1, std2) 
 VALUES (:id, :line_no, :start_time, :end_time, :spec, :std1, :std2);
 """
 
-query_drop = "DROP TABLE control_front"
+# query_drop = "DROP TABLE control_front"
 
 
 def sql_operation():
-    df = pl.read_csv("/home/td/workspace/control_front.csv").select(
-        "id",
-        "line_no",
-        pl.col("start_time").str.strptime(pl.Datetime("ms"), r"%d/%m/%Y %H:%M:%S"),
-        pl.col("end_time").str.strptime(pl.Datetime("ms"), r"%d/%m/%Y %H:%M:%S"),
-        "spec",
-        "std1",
-        "std2",
+    df = pl.read_parquet("/home/td/workspace/guilun_control_behind.parquet").select(
+        "id", "line_no", "start_time", "end_time", "spec", "std1", "std2"
     )
     data_arr = df.to_dicts()
-    # print(arr[0:15])
+
     engine = mysql_engine()
     with engine.connect() as conn:
         # conn.execute(text(query_drop))
         # conn.commit()
-        # conn.execute(text(query1))
+        # conn.execute(text(query_create_control_behind))
         # conn.commit()
         conn.execute(text(query_insert), data_arr)
         conn.commit()

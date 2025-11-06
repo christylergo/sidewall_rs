@@ -7,7 +7,7 @@ mod schema;
 
 use chrono::{Local, TimeZone};
 use config_meta::CONFIG_META;
-use diesel_model::{ControlFront, Sidewall};
+use diesel_model::{ControlBehind, ControlFront, Sidewall};
 use diesel_query::Crud;
 use guilun_qushu::DataFrameGenerator;
 
@@ -24,10 +24,11 @@ pub fn data_processing() {
             None => overall_start,
         };
         let df_front = ControlFront::load_data_frame(line_id, &start, &overall_end);
+        let df_behind = ControlBehind::load_data_frame(line_id, &start, &overall_end);
         let df_generator = DataFrameGenerator::new(line, &start, &overall_end);
 
         for df_sw in df_generator {
-            let df_ready = assemble_df::assemble(df_front.clone(), df_sw);
+            let df_ready = assemble_df::assemble(df_front.clone(), df_behind.clone(), df_sw);
             Sidewall::write_database(line_id, df_ready);
         }
     }

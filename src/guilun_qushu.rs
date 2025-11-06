@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::{collections::HashMap, thread::sleep, time::Duration as time_duration};
 
 static STEP: Duration = Duration::days(7); // 7天
-static INTERVAL: Duration = Duration::hours(12); // 12小时, 取数小间隔
+pub static INTERVAL: Duration = Duration::hours(12); // 12小时, 取数小间隔
 type DT = DateTime<Local>;
 
 #[derive(Debug, Deserialize)]

@@ -16,9 +16,27 @@ diesel::table! {
         #[max_length = 255]
         #[sql_name = "spec"]
         front_norm_name -> VarChar,
-        // #[max_length = 255]
-        // #[sql_name = "plan_no"]
-        // plan_id -> VarChar
+    }
+}
+
+// typed manully
+diesel::table! {
+    control_behind(id){
+        #[max_length = 36]
+        id -> VarChar,
+        #[sql_name = "line_no"]
+        line_id -> Integer,
+        #[sql_name = "start_time"]
+        dt -> Datetime,
+        #[sql_name = "end_time"]
+        control_end_dt -> Datetime,
+        #[sql_name = "std1"]
+        behind_zl_standard -> Float,
+        #[sql_name = "std2"]
+        behind_zk_standard -> Float,
+        #[max_length = 255]
+        #[sql_name = "spec"]
+        behind_norm_name -> VarChar,
     }
 }
 

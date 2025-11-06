@@ -1,22 +1,28 @@
 use crate::CONFIG_META;
-use crate::diesel_model::{ControlFront, NewSidewall, Sidewall};
+use crate::diesel_model::{ControlBehind, ControlFront, NewSidewall, Sidewall};
+use crate::guilun_qushu::INTERVAL;
 // use crate::schema::sidewall;
-use chrono::{DateTime, Local, NaiveDateTime};
+use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
+// use chrono_tz::Asia::Shanghai;
 use diesel::prelude::*;
-// use dotenvy::dotenv;
+
+use polars::frame::row::Row;
 use polars::prelude::{
-    self as pl, DataFrame, IntoLazy, JsonFormat, JsonWriter, LazyFrame, SerWriter,
+    self as pl, AnyValue, DataFrame, DataType, IntoLazy, JsonFormat, JsonWriter, LazyFrame, Schema,
+    SerWriter, TimeUnit, TimeZone as pl_TimeZone,
 };
-// use std::env;
+
 use std::io::Cursor;
 
 type DT = DateTime<Local>;
 
 fn establish_connection() -> MysqlConnection {
-    // dotenv().ok();
+    use dotenvy::dotenv;
+    use std::env;
+    dotenv().ok();
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    // let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let database_url = (&CONFIG_META).emit_database_url();
+    // let database_url = (&CONFIG_META).emit_database_url();
     MysqlConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
@@ -40,9 +46,10 @@ impl Crud for ControlFront {
 
         let conn = &mut establish_connection();
 
+        let ss = *s - INTERVAL * 2;
         let results: Vec<Self> = Self::query()
             .filter(line_id.eq(line_idx as i32))
-            .filter(dt.ge(&s.naive_local()))
+            .filter(dt.ge(&ss.naive_local()))
             .filter(dt.lt(&e.naive_local()))
             // .limit(5)
             .load(conn)
@@ -88,6 +95,81 @@ impl Crud for ControlFront {
                 ),
             ];
             return DataFrame::new(col_vector).unwrap().lazy();
+        }
+    }
+}
+
+impl Crud for ControlBehind {
+    fn load_scalar(_line_id: u32) -> Option<ControlBehind> {
+        Default::default()
+    }
+    fn write_database(_line_id: u32, _df: LazyFrame) {}
+
+    fn load_data_frame(line_idx: u32, s: &DT, e: &DT) -> LazyFrame {
+        use crate::schema::control_behind::dsl::*;
+
+        let conn = &mut establish_connection();
+
+        let ss = *s - INTERVAL * 2;
+        let results: Vec<Self> = Self::query()
+            .filter(line_id.eq(line_idx as i32))
+            .filter(dt.ge(&ss.naive_local()))
+            .filter(dt.lt(&e.naive_local()))
+            .order_by(dt.asc())
+            // .limit(5)
+            .load(conn)
+            .expect("Error loading control_behind!");
+        // println!("{:?}", results);
+        if results.len() == 0 {
+            return Default::default();
+        } else {
+            // let pl_tz_shanghai = pl_TimeZone::from_chrono(&Shanghai);
+            let rows = results
+                .iter()
+                .map(|behind| {
+                    Row(vec![
+                        AnyValue::Datetime(
+                            // behind
+                            //     .dt
+                            //     .and_local_timezone(Shanghai)
+                            //     .unwrap()
+                            //     .timestamp_millis(),
+                            // TimeUnit::Milliseconds,
+                            // Some(&pl_tz_shanghai),
+                            // 上面注释掉的代码是出错的部分, chrono的时间正确地把本地时间转换成了utc的timstamp,
+                            // 但是polars并没有正确地把utc时间戳解析成本地时间, 原因是, 解析逻辑简单的把一个默认为naivedatetime
+                            // 时间戳添加上一个时区, 不做任何转换,所以最后的时间就变成了Utc时间, 而不是本地时间
+                            behind.dt.and_utc().timestamp_millis(),
+                            TimeUnit::Milliseconds,
+                            None,
+                        ),
+                        AnyValue::Datetime(
+                            behind.control_end_dt.and_utc().timestamp_millis(),
+                            TimeUnit::Milliseconds,
+                            None,
+                        ),
+                        AnyValue::Float32(behind.behind_zk_standard),
+                        AnyValue::String(behind.behind_norm_name.as_str()),
+                    ])
+                })
+                .collect::<Vec<_>>();
+            let df = DataFrame::from_rows_and_schema(
+                &rows,
+                &Schema::from_iter(vec![
+                    (
+                        "dt".into(),
+                        DataType::Datetime(TimeUnit::Milliseconds, None),
+                    ),
+                    (
+                        "control_end_dt".into(),
+                        DataType::Datetime(TimeUnit::Milliseconds, None),
+                    ),
+                    ("behind_zk_standard".into(), DataType::Float32),
+                    ("behind_norm_name".into(), DataType::String),
+                ]),
+            )
+            .unwrap();
+            return df.lazy();
         }
     }
 }
@@ -211,12 +293,21 @@ mod tests {
     fn query_works() {
         // let sw = Sidewall::load_scalar(104);
         // println!("{:?}", sw);
-        let df = df!(
-            "line_id" => &[1, 2, 3],
-            "front_norm_name" => &[Some("bak"),None,  Some("baz")],
-        )
-        .unwrap()
-        .lazy();
-        NewSidewall::write_database(104, df);
+        // let df = df!(
+        //     "line_id" => &[1, 2, 3],
+        //     "front_norm_name" => &[Some("bak"),None,  Some("baz")],
+        // )
+        // .unwrap()
+        // .lazy();
+        // NewSidewall::write_database(104, df);
+
+        let (line_id, s, e) = (
+            // "SW01",
+            104,
+            Local.with_ymd_and_hms(2025, 11, 1, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 11, 3, 0, 0, 0).unwrap(),
+        );
+        let df_behind = ControlBehind::load_data_frame(line_id, &s, &e);
+        println!("{:?}", df_behind.collect().unwrap());
     }
 }
