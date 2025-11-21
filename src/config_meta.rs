@@ -123,8 +123,8 @@ impl Meta {
 }
 
 fn load_config() -> Meta {
-    let config_path = Path::new("/home/td/workspace/rust/guilun_sidewall/sidewall_configs.toml");
-    // let config_path = Path::new("sidewall_tags.toml");
+    // let config_path = Path::new("/home/td/workspace/rust/guilun_sidewall/sidewall_configs.toml");
+    let config_path = Path::new("sidewall_tags.toml");
     let toml_str = fs::read_to_string(config_path).unwrap();
     let meta: Meta = toml::from_str(&toml_str).unwrap();
 

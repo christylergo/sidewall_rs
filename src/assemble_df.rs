@@ -189,7 +189,11 @@ fn calculation_exprs(segments: Vec<String>) -> Vec<Expr> {
         .round(4, Default::default())
         .alias(splice("cpk"));
 
-    let qualified_count = qualified.clone().count().alias(splice("qualified_count"));
+    let qualified_count = qualified
+        .clone()
+        .is_not_null()
+        .sum()
+        .alias(splice("qualified_count"));
     let gt_count = valid
         .clone()
         .gt(col(usl_col))

@@ -4,19 +4,19 @@ from urllib.parse import quote
 
 
 def mysql_engine() -> Engine:
-    # host = "10.40.22.41"
-    # user = "root"
-    # pwd = quote("jHWnhLxg^qPG+5FNalgk")
-    # db = "smart_prod_line_v1"
-    host = "127.0.0.1"
+    host = "10.40.22.41"
     user = "root"
-    pwd = "123"
-    db = "playground"
+    pwd = quote("jHWnhLxg^qPG+5FNalgk")
+    db = "smart_prod_line_v1"
+    # host = "127.0.0.1"
+    # user = "root"
+    # pwd = "123"
+    # db = "playground"
     engine = create_engine(f"mysql+pymysql://{user}:{pwd}@{host}:3306/{db}")
     return engine
 
 
-query_create_sidewall = """
+query = """
 CREATE TABLE batch_indices_sidewall (
   pk INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
   line_id INTEGER NOT NULL,
@@ -64,6 +64,8 @@ CREATE TABLE batch_indices_sidewall (
   front_zk_valid_count_mc INTEGER,
   front_zl_cpk_avg FLOAT,
   front_zk_cpk_avg FLOAT,
+  front_zl_rate_avg FLOAT,
+  front_zk_rate_avg FLOAT,
   front_count INTEGER,
   behind_start_datetime DATETIME,
   behind_end_datetime DATETIME,
@@ -108,6 +110,8 @@ CREATE TABLE batch_indices_sidewall (
   behind_zk_valid_count_mc INTEGER,
   behind_zl_cpk_avg FLOAT,
   behind_zk_cpk_avg FLOAT,
+  behind_zl_rate_avg FLOAT,
+  behind_zk_rate_avg FLOAT,
   behind_count INTEGER,
   control_rate FLOAT,
   id VARCHAR(36)  NOT NULL DEFAULT (UUID()),
@@ -116,7 +120,7 @@ CREATE TABLE batch_indices_sidewall (
 """
 
 
-query_create_control_front = """
+query1 = """
 CREATE TABLE control_front (
 id VARCHAR(36) PRIMARY KEY  DEFAULT (UUID()),
 line_no INTEGER,
@@ -124,43 +128,51 @@ start_time DATETIME,
 end_time DATETIME,
 std1 FLOAT,
 std2 FLOAT,
-spec VARCHAR(255)
-)
-"""
-
-query_create_control_behind = """
-CREATE TABLE control_behind (
-id VARCHAR(36) PRIMARY KEY  DEFAULT (UUID()),
-line_no INTEGER,
-start_time DATETIME,
-end_time DATETIME,
-std1 FLOAT,
-std2 FLOAT,
-spec VARCHAR(255)
+spec VARCHAR(255),
+plan_no VARCHAR(255)
 )
 """
 
 query_insert = """
-INSERT INTO control_behind (id, line_no, start_time, end_time, spec, std1, std2) 
+INSERT INTO control_front (id, line_no, start_time, end_time, spec, std1, std2) 
 VALUES (:id, :line_no, :start_time, :end_time, :spec, :std1, :std2);
 """
 
-# query_drop = "DROP TABLE control_front"
+query_drop = "DROP TABLE control_front"
+
+column_for_add = [
+    "front_zl_cpk_avg",
+    "front_zk_cpk_avg",
+    "front_zl_rate_avg",
+    "front_zk_rate_avg",
+    "behind_zl_cpk_avg",
+    "behind_zk_cpk_avg",
+    "behind_zl_rate_avg",
+    "behind_zk_rate_avg",
+]
 
 
 def sql_operation():
-    df = pl.read_parquet("/home/td/workspace/guilun_control_behind.parquet").select(
-        "id", "line_no", "start_time", "end_time", "spec", "std1", "std2"
-    )
-    data_arr = df.to_dicts()
-
+    # df = pl.read_csv("/home/td/workspace/control_front.csv").select(
+    #     "id",
+    #     "line_no",
+    #     pl.col("start_time").str.strptime(pl.Datetime("ms"), r"%d/%m/%Y %H:%M:%S"),
+    #     pl.col("end_time").str.strptime(pl.Datetime("ms"), r"%d/%m/%Y %H:%M:%S"),
+    #     "spec",
+    #     "std1",
+    #     "std2",
+    # )
+    # data_arr = df.to_dicts()
+    # # print(arr[0:15])
     engine = mysql_engine()
     with engine.connect() as conn:
         # conn.execute(text(query_drop))
         # conn.commit()
-        # conn.execute(text(query_create_control_behind))
+        # conn.execute(text(query1))
         # conn.commit()
-        conn.execute(text(query_insert), data_arr)
+        for col in column_for_add:
+            query_add = f"ALTER TABLE batch_indices_sidewall ADD COLUMN {col} FLOAT"
+            conn.execute(text(query_add))
         conn.commit()
         pass
 

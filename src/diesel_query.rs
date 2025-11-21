@@ -2,14 +2,14 @@ use crate::CONFIG_META;
 use crate::diesel_model::{ControlBehind, ControlFront, NewSidewall, Sidewall};
 use crate::guilun_qushu::INTERVAL;
 // use crate::schema::sidewall;
-use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
+use chrono::{DateTime, Local, NaiveDateTime};
 // use chrono_tz::Asia::Shanghai;
 use diesel::prelude::*;
 
 use polars::frame::row::Row;
 use polars::prelude::{
     self as pl, AnyValue, DataFrame, DataType, IntoLazy, JsonFormat, JsonWriter, LazyFrame, Schema,
-    SerWriter, TimeUnit, TimeZone as pl_TimeZone,
+    SerWriter, TimeUnit,
 };
 
 use std::io::Cursor;
@@ -17,12 +17,12 @@ use std::io::Cursor;
 type DT = DateTime<Local>;
 
 fn establish_connection() -> MysqlConnection {
-    use dotenvy::dotenv;
-    use std::env;
-    dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    // use dotenvy::dotenv;
+    // use std::env;
+    // dotenv().ok();
+    // let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    // let database_url = (&CONFIG_META).emit_database_url();
+    let database_url = (&CONFIG_META).emit_database_url();
     MysqlConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
@@ -288,7 +288,8 @@ impl NewSidewall {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::{df, prelude::IntoLazy};
+    use chrono::TimeZone;
+    // use polars::{df, prelude::IntoLazy};
     #[test]
     fn query_works() {
         // let sw = Sidewall::load_scalar(104);
